@@ -1,1 +1,217 @@
+CREATE DATABASE TiendaDeMascotas;
+USE TiendaDeMascotas;
 
+-- Tabla de Clientes con CURP
+CREATE TABLE Clientes (
+  ID_Persona INT PRIMARY KEY AUTO_INCREMENT,
+  CURP VARCHAR(18) NOT NULL,
+  Cedula VARCHAR(20),
+  Nombre VARCHAR(50)
+);
+
+-- Tabla de Mascotas
+CREATE TABLE Mascotas (
+  ID_Mascota INT PRIMARY KEY AUTO_INCREMENT,
+  Cod_Mascota VARCHAR(20),
+  Dueño INT,
+  FOREIGN KEY (Dueño) REFERENCES Clientes(ID_Persona)
+);
+
+-- Tabla de Tipo de Mascotas
+CREATE TABLE Tipo_Mascotas (
+  ID_TipoMascota INT PRIMARY KEY AUTO_INCREMENT,
+  TipoDeMascota VARCHAR(50),
+  Nombre VARCHAR(100),
+  Genero VARCHAR(10),
+  Edad INT,
+  Mascota INT,
+  FOREIGN KEY (Mascota) REFERENCES Mascotas(ID_Mascota)
+);
+
+-- Tabla de Facturas
+CREATE TABLE Facturas (
+  ID_Factura INT PRIMARY KEY AUTO_INCREMENT,
+  Codigo_Factura VARCHAR(50),
+  Fecha DATE,
+  TOTAL DECIMAL(10, 2),
+  Cliente INT,
+  Mascota INT,
+  Servicio INT,
+  Pago INT,
+  FOREIGN KEY (Cliente) REFERENCES Clientes(ID_Persona),
+  FOREIGN KEY (Mascota) REFERENCES Mascotas(ID_Mascota),
+  FOREIGN KEY (Servicio) REFERENCES Servicios(ID_Servicio),
+  FOREIGN KEY (Pago) REFERENCES Metodo_Pago(ID_Pago)
+);
+
+-- Tabla de Servicios
+CREATE TABLE Servicios (
+  ID_Servicio INT PRIMARY KEY AUTO_INCREMENT,
+  Nombre_Servicio VARCHAR(100),
+  Precio DECIMAL(10, 2),
+  Estado VARCHAR(20),
+  Mascota INT,
+  FOREIGN KEY (Mascota) REFERENCES Mascotas(ID_Mascota)
+);
+
+-- Tabla de Métodos de Pago
+CREATE TABLE Metodo_Pago (
+  ID_Pago INT PRIMARY KEY AUTO_INCREMENT,
+  Tipo_Pago VARCHAR(50)
+);
+
+-- Tabla de Tipos de Servicios
+CREATE TABLE Tipo_Servicios (
+  ID_TipoServicio INT PRIMARY KEY AUTO_INCREMENT,
+  Servicio VARCHAR(100)
+);
+
+-- Índices para optimizar las búsquedas
+CREATE INDEX idx_usuario_mascota ON Mascotas(Dueño);
+CREATE INDEX idx_factura_cliente ON Facturas(Cliente);
+
+-- Procedimiento almacenado para insertar una factura
+DELIMITER //
+CREATE PROCEDURE InsertarFactura(
+    IN p_Codigo_Factura VARCHAR(50), 
+    IN p_Fecha DATE, 
+    IN p_Total DECIMAL(10, 2),
+    IN p_ID_Cliente INT,
+    IN p_ID_Mascota INT,
+    IN p_ID_Servicio INT,
+    IN p_ID_Pago INT
+)
+BEGIN
+  INSERT INTO Facturas(Codigo_Factura, Fecha, TOTAL, Cliente, Mascota, Servicio, Pago)
+  VALUES(p_Codigo_Factura, p_Fecha, p_Total, p_ID_Cliente, p_ID_Mascota, p_ID_Servicio, p_ID_Pago);
+END //
+DELIMITER ;
+<?php
+// Datos de conexión
+$host = 'localhost';
+$dbname = 'TiendaDeMascotas';
+$user = 'root';  // Usuario predeterminado en XAMPP
+$password = '';  // Contraseña predeterminada en XAMPP (vacía)
+
+// Crear la conexión con PDO
+try {
+    $db = new PDO("mysql:host=$host;dbname=$dbname", $user, $password);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    echo "Error de conexión: " . $e->getMessage();
+    die();
+}
+?>
+<?php
+include 'db.php';  // Conexión a la base de datos
+
+// Obtener listado de clientes
+$stmt = $db->query('SELECT * FROM Clientes ORDER BY ID_Persona DESC');
+$clientes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Manejo de crear cliente
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['crear'])) {
+    $curp = $_POST['curp'];
+    $cedula = $_POST['cedula'];
+    $nombre = $_POST['nombre'];
+
+    $stmt = $db->prepare('INSERT INTO Clientes (CURP, Cedula, Nombre) VALUES (?, ?, ?)');
+    if ($stmt->execute([$curp, $cedula, $nombre])) {
+        header("Location: clientes.php");
+    } else {
+        echo "Error al crear el cliente.";
+    }
+}
+
+// Manejo de editar cliente
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['editar'])) {
+    $id = $_POST['id'];
+    $curp = $_POST['curp'];
+    $cedula = $_POST['cedula'];
+    $nombre = $_POST['nombre'];
+
+    $stmt = $db->prepare('UPDATE Clientes SET CURP = ?, Cedula = ?, Nombre = ? WHERE ID_Persona = ?');
+    if ($stmt->execute([$curp, $cedula, $nombre, $id])) {
+        header("Location: clientes.php");
+        exit();
+    } else {
+        echo "Error al actualizar el cliente.";
+    }
+}
+
+// Manejo de eliminar cliente
+if (isset($_GET['eliminar'])) {
+    $id = $_GET['eliminar'];
+    $stmt = $db->prepare('DELETE FROM Clientes WHERE ID_Persona = ?');
+    if ($stmt->execute([$id])) {
+        header("Location: clientes.php");
+        exit();
+    } else {
+        echo "Error al eliminar el cliente.";
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRUD de Clientes</title>
+</head>
+<body>
+    <h1>Gestión de Clientes</h1>
+
+    <h2>Crear Cliente</h2>
+    <form method="post">
+        <input type="hidden" name="crear" value="1">
+        <label for="curp">CURP:</label>
+        <input type="text" name="curp" required maxlength="18">
+
+        <label for="cedula">Cédula:</label>
+        <input type="text" name="cedula" required>
+
+        <label for="nombre">Nombre:</label>
+        <input type="text" name="nombre" required>
+
+        <button type="submit">Crear</button>
+    </form>
+
+    <h2>Listado de Clientes</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>CURP</th>
+                <th>Cédula</th>
+                <th>Nombre</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($clientes as $cliente): ?>
+                <tr>
+                    <form method="post">
+                        <td><?php echo $cliente['ID_Persona']; ?></td>
+                        <td>
+                            <input type="text" name="curp" value="<?php echo $cliente['CURP']; ?>" required maxlength="18">
+                        </td>
+                        <td>
+                            <input type="text" name="cedula" value="<?php echo $cliente['Cedula']; ?>" required>
+                        </td>
+                        <td>
+                            <input type="text" name="nombre" value="<?php echo $cliente['Nombre']; ?>" required>
+                        </td>
+                        <td>
+                            <input type="hidden" name="id" value="<?php echo $cliente['ID_Persona']; ?>">
+                            <input type="hidden" name="editar" value="1">
+                            <button type="submit">Editar</button>
+                            <a href="clientes.php?eliminar=<?php echo $cliente['ID_Persona']; ?>" onclick="return confirm('¿Estás seguro de eliminar este cliente?')">Eliminar</a>
+                        </td>
+                    </form>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+</body>
+</html>
